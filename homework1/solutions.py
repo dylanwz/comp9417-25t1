@@ -2,8 +2,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import log_loss
 
-pd.set_option('future.no_silent_downcasting', True)
+# pd.set_option('future.no_silent_downcasting', True)
 
 df = pd.read_csv("heart.csv")
 
@@ -52,6 +54,7 @@ plt.title('Target Variable Histogram')
 plt.savefig('hist.png')
 k = 0.1
 y_train_cleaned = (y_train > k).astype(int)
+y_test_cleaned = (y_train > k).astype(int)
 plt.clf()
 plt.hist(y_train_cleaned, bins=20, edgecolor='black')
 plt.xlabel('Heart Disease')
@@ -64,3 +67,15 @@ X_test.to_csv('X_test_cleaned.csv', index=False)
 y_train.to_csv('y_train.csv', index=False)
 y_test.to_csv('y_test.csv', index=False)
 y_train_cleaned.to_csv('y_train_cleaned.csv', index=False)
+
+# QUESTION TWO:
+vals = np.logspace(-4, 4, 100)
+loss_data = []
+for val in vals:
+    m = LogisticRegression(C=val, solver='lbfgs').fit(X_train, y_train_cleaned)
+    y_pred_train = m.predict_proba(X_train)
+    y_pred_test = m.predict_proba(X_test)
+    loss_data.append([val, log_loss(y_train_cleaned, y_pred_train), log_loss(y_test_cleaned, y_pred_test)])
+cols = ['C value', 'train log loss', 'test log loss']
+loss_df = pd.DataFrame(loss_data, columns=cols)
+loss_df
