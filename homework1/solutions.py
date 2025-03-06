@@ -5,7 +5,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, accuracy_score
 
-pd.set_option('future.no_silent_downcasting', True)
+# pd.set_option('future.no_silent_downcasting', True)
 
 df = pd.read_csv("heart.csv")
 
@@ -14,68 +14,86 @@ df = pd.read_csv("heart.csv")
 #   QUESTION 1: Data Wrangling
 #
 ###################################################################################################
+
 y = df['Heart_Disease']
 
-# Part (A): 
+# Part (A): - create X,y
+#           - remove column
 X = df.drop(columns=['Heart_Disease', 'Last_Checkup'])
 
-# B:
+# Part (B): - modify a column
+#           - age -> |age|
+#           - `['coln'] = ` directly, like int variable
 X['Age'] = X['Age'].abs()
 
-# C:
-X['Gender'] = X['Gender'].replace({'Male': 0, 'M': 0, 'Female': 1, 'F': 1, 'Unknown': 2})
-X['Smoker'] = X['Smoker'].replace({'No': 0, 'N': 0, 'Yes': 1, 'Y': 1, np.nan: 2})
+# Part (C): - modify a column
+#           - gender -> category(gender), smoker -> category(smoker)
+#           - `replace` operates coln-wise with a dict map
+gender_category_map = {'Male': 0, 'M': 0, 'Female': 1, 'F': 1, 'Unknown': 2}
+smoker_category_map = {'No': 0, 'N': 0, 'Yes': 1, 'Y': 1, np.nan: 2}
+X['Gender'] = X['Gender'].replace(gender_category_map)
+X['Smoker'] = X['Smoker'].replace(smoker_category_map)
 
-# D:
+# Part (D): - split a column
+#           - blood pressure -> systolic, diastolic
+#           - # `.str.split()` splits, `expand` returns dataframes to be put into cols
 X[['Systolic', 'Diastolic']] = X['Blood_Pressure'].str.split('/', expand=True).astype(float)
-X.drop(columns=['Blood_Pressure'], inplace=True)
+X.drop(columns=['Blood_Pressure'], inplace=True)                                                # 
 
-# E:
+# Part (E): - form datasets from dataframes i.e. arrays
+#           - shuffle and proportionally split the dataset into training and testing
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=2)
 
-# F:
-medians = X_train.groupby('Gender')['Age'].median() # doesn't include NaN values
+# PART (F): - modify a column
+#           - impute age values
+#           - `groupby` separates the dataset along rows based on the indicator i.e. gender, gives a df-like obj
+medians = X_train.groupby('Gender')['Age'].median()     # doesn't include NaN values
 def impute_age(row):
     if pd.isnull(row['Age']):
-        return medians[row['Gender']]
+        return medians[row['Gender']]                   # use index medians with gender value of row
     return row['Age']
-X_train['Age'] = X_train.apply(impute_age, axis=1)
-X_test['Age'] = X_test.apply(impute_age, axis=1)
+X_train['Age'] = X_train.apply(impute_age, axis=1)      # axis=1 -> row-wise/down the coln
+X_test['Age'] = X_test.apply(impute_age, axis=1)        # test must also use metrics from train
 
-# G: 
+# Part (G): - modify a column
+#           - noramlise key numerical columns
+#           - as in (B)
 cols_to_noramlise = ['Age', 'Height_feet', 'Weight_kg', 'Cholesterol', 'Systolic', 'Diastolic']
-def normalise_cols(df, cols):
-    for col in cols:
-        min_val =  df[col].min()
-        max_val = df[col].max()
-        df[col] = (df[col] - min_val)/(max_val - min_val) # lwk slow but easy to read
-normalise_cols(X_train, cols_to_noramlise)
-normalise_cols(X_test, cols_to_noramlise)
+for col in cols_to_noramlise:
+    min_val =  X_train[col].min()
+    max_val = X_train[col].max()
+    X_train[col] = (X_train[col] - min_val)/(max_val - min_val)     # lwk slow but easy to read
+    X_test[col] = (X_test[col] - min_val)/(max_val - min_val)       # test must also use metrics from train       
 
-# H:
+# Part (H): - plotting histogram from list of values i.e. how many of each value occurs
+#           - for each value of heart disease, how manny instances
+#           - `plt.hist` makes 'plot' instance to be added with axis title, labels, data, etc.
 plt.hist(y_train, bins=20, edgecolor='black')
-plt.xlabel('Heart Disease')
+plt.xlabel('Heart disease')
 plt.ylabel('Frequency')
-plt.title('Target Variable Histogram')
-plt.savefig('hist.png')
+plt.title('Histogram of heart disease values')
+plt.savefig('hist_initial.png')
+
+# Part (H): - modify labels
+#           - quantise heart disease values
+#           - act on coln as 'elt-wise operating' variable
 k = 0.05
 y_train_qnt = (y_train > k).astype(int)
 y_test_qnt = (y_test > k).astype(int)
-plt.clf()
-plt.hist(y_train_qnt, bins=20, edgecolor='black')
+plt.clf()                                               # clear histogram
+plt.hist(y_train_qnt, bins=20, edgecolor='black')       # split vals into 20 intervals
 plt.xlabel('Heart Disease')
 plt.ylabel('Frequency')
 plt.title('Target Variable Histogram')
-plt.savefig('hist_cleaned.png')
+plt.savefig('hist_quantised.png')                       # save because can't plot
 
-X_train.to_csv('X_train_cleaned.csv', index=False)
-X_test.to_csv('X_test_cleaned.csv', index=False)
-y_train.to_csv('y_train.csv', index=False)
-y_test.to_csv('y_test.csv', index=False)
-y_train_qnt.to_csv('y_train_cleaned.csv', index=False)
+###################################################################################################
+#
+#   QUESTION 2: Logistic Regression and Hyper-parameter Tuning
+#
+###################################################################################################
 
-# QUESTION TWO:
-# B:
+# Part (A): - 
 vals = np.logspace(-4, 4, 100)
 train_losses = []
 test_losses = []
