@@ -47,23 +47,27 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 # PART (F): - modify a column
 #           - impute age values
 #           - `groupby` separates the dataset along rows based on the indicator i.e. gender, gives a df-like obj
-medians = X_train.groupby('Gender')['Age'].median()     # doesn't include NaN values
-def impute_age(row):
-    if pd.isnull(row['Age']):
-        return medians[row['Gender']]                   # use index medians with gender value of row
-    return row['Age']
-X_train['Age'] = X_train.apply(impute_age, axis=1)      # axis=1 -> row-wise/down the coln
-X_test['Age'] = X_test.apply(impute_age, axis=1)        # test must also use metrics from train
+def impute_age(df, col):
+    medians = df.groupby('Gender')['Age'].median()      # doesn't include NaN values
+    def do_impute_age(row):
+        if pd.isnull(row['Age']):
+            return medians[row['Gender']]                   # use index medians with gender value of row
+        return row['Age']
+    df[col] = df.apply(do_impute_age, axis=1)
+impute_age(X_train, 'Age')                                      # axis=1 -> row-wise/down the coln
+impute_age(X_test, 'Age')              
 
 # Part (G): - modify a column
 #           - noramlise key numerical columns
 #           - as in (B)
 cols_to_noramlise = ['Age', 'Height_feet', 'Weight_kg', 'Cholesterol', 'Systolic', 'Diastolic']
-for col in cols_to_noramlise:
-    min_val =  X_train[col].min()
-    max_val = X_train[col].max()
-    X_train[col] = (X_train[col] - min_val)/(max_val - min_val)     # lwk slow but easy to read
-    X_test[col] = (X_test[col] - min_val)/(max_val - min_val)       # test must also use metrics from train       
+def normalise_cols(df):
+    for col in cols_to_noramlise:
+        min_val =  df[col].min()
+        max_val = df[col].max()
+        df[col] = (df[col] - min_val)/(max_val - min_val)
+normalise_cols(X_train)
+normalise_cols(X_test)                                  # for this, test doesn't use metrics from train       
 
 # Part (H): - plotting histogram from list of values i.e. how many of each value occurs
 #           - for each value of heart disease, how manny instances
@@ -76,8 +80,8 @@ plt.savefig('hist_initial.png')
 
 # Part (H): - modify labels
 #           - quantise heart disease values
-#           - act on coln as 'elt-wise operating' variable
-k = 0.05
+#           - act on coln as if it's an 'elt-wise operating' variable
+k = 0.1
 y_train_qnt = (y_train > k).astype(int)
 y_test_qnt = (y_test > k).astype(int)
 plt.clf()                                               # clear histogram
@@ -104,15 +108,6 @@ for val in vals:
     y_test_prob = m.predict_proba(X_test)
     train_losses.append(log_loss(y_train_qnt, y_train_prob))
     test_losses.append(log_loss(y_test_qnt, y_test_prob))
-
-    y_train_pred = m.predict(X_train)
-    y_test_pred = m.predict(X_test)
-
-    train_accuracy = accuracy_score(y_train_qnt, y_train_pred)
-    test_accuracy = accuracy_score(y_test_qnt, y_test_pred)
-
-    print(f'Train Accuracy: {train_accuracy:.4f}')
-    print(f'Test Accuracy: {test_accuracy:.4f}')
 plt.figure(figsize=(8, 6))
 plt.plot(vals, train_losses, label='Train log loss', marker='o')
 plt.plot(vals, test_losses, label='Test log loss', marker='s')
@@ -122,7 +117,7 @@ plt.ylabel('Log loss')
 plt.title('Log loss vs C')
 plt.legend()
 plt.grid()
-plt.savefig('graph.png')
+plt.savefig('loss_vs_C.png')
 
 # C:
 # (j) Perform 5-fold cross-validation for different C values
@@ -132,7 +127,7 @@ cv_results = []
 N = len(X_train)
 fold_size = N // 5
 
-for C in C_values:
+for C in vals:
     fold_losses = []
     
     for i in range(5):
@@ -141,7 +136,7 @@ for C in C_values:
         X_train_fold = pd.concat([X_train.iloc[:start], X_train.iloc[end:]])
         y_train_fold = pd.concat([y_train_qnt.iloc[:start], y_train_qnt.iloc[end:]])
         
-        model = LogisticRegression(C=C, penalty='l2', solver='lbfgs', max_iter=1000)
+        model = LogisticRegression(C=C, penalty='l2', solver='lbfgs')
         model.fit(X_train_fold, y_train_fold)
         y_val_prob = model.predict_proba(X_val)[:, 1]
         fold_losses.append(log_loss(y_val, y_val_prob))
@@ -155,7 +150,7 @@ plt.xlabel('log10(C)')
 plt.ylabel('Log-Loss')
 plt.title('5-Fold Cross-Validation Log-Loss for Different C Values')
 plt.grid()
-plt.savefig('graph2')
+plt.savefig('CV_loss_vs_C.png')
 
 # (l) Select best C based on median log-loss
 median_losses = [np.median(losses) for losses in cv_results]
